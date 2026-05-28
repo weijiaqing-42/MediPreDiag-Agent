@@ -1,0 +1,36 @@
+# 环境变量 - 含密钥，绝对不能提交
+.env
+
+# Python 虚拟环境
+.venv/
+venv/
+env/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 生成数据
+data/
+reports/
+
+# Docker volumes
+mysql_data/
+redis_data/
+etcd_data/
+minio_data/
+milvus_data/

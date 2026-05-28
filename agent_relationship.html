@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediPreDiag-Agent 多智能体关系图</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --border: #334155;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --accent: #38bdf8;
+            --green: #4ade80;
+            --red: #f87171;
+            --yellow: #fbbf24;
+            --purple: #c084fc;
+            --orange: #fb923c;
+            --pink: #f472b6;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header {
+            text-align: center;
+            padding: 40px 20px 20px;
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border-bottom: 1px solid var(--border);
+        }
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--accent), var(--purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header .subtitle {
+            color: var(--muted);
+            font-size: 1rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        .controls button {
+            padding: 8px 20px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--card-bg);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .controls button:hover { border-color: var(--accent); color: var(--accent); }
+        .controls button.active { background: rgba(56,189,248,0.15); border-color: var(--accent); color: var(--accent); }
+
+        .diagram-wrapper {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 24px;
+            overflow-x: auto;
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+        .legend-dot.entry { background: var(--green); }
+        .legend-dot.intent { background: var(--accent); }
+        .legend-dot.analysis { background: var(--purple); }
+        .legend-dot.eval { background: var(--yellow); }
+        .legend-dot.tool { background: var(--orange); }
+        .legend-dot.output { background: var(--pink); }
+        .legend-dot.control { background: var(--red); }
+
+        .mermaid svg { max-width: 100% !important; height: auto !important; }
+
+        .agent-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .agent-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+        .agent-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+        }
+        .agent-card .card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .agent-card .card-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+        .agent-card .card-name {
+            font-weight: 600;
+            font-size: 1.05rem;
+        }
+        .agent-card .card-model {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+        .agent-card .card-desc {
+            font-size: 0.85rem;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .icon-entry { background: rgba(74,222,128,0.15); color: var(--green); }
+        .icon-intent { background: rgba(56,189,248,0.15); color: var(--accent); }
+        .icon-analysis { background: rgba(192,132,252,0.15); color: var(--purple); }
+        .icon-eval { background: rgba(251,191,36,0.15); color: var(--yellow); }
+        .icon-tool { background: rgba(251,146,60,0.15); color: var(--orange); }
+        .icon-output { background: rgba(244,114,182,0.15); color: var(--pink); }
+        .icon-control { background: rgba(248,113,113,0.15); color: var(--red); }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--muted);
+            font-size: 0.8rem;
+            border-top: 1px solid var(--border);
+            margin-top: 40px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 { font-size: 1.5rem; }
+            .diagram-wrapper { padding: 16px; }
+            .agent-cards { grid-template-columns: 1fr; }
+        }
+
+        .mermaid .node rect,
+        .mermaid .node circle,
+        .mermaid .node polygon { fill: #1e293b !important; stroke: #334155 !important; }
+        .mermaid .label text { fill: #e2e8f0 !important; }
+        .mermaid .edgePath .path { stroke: #475569 !important; }
+        .mermaid .arrowheadPath { fill: #475569 !important; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>MediPreDiag-Agent 多智能体关系图</h1>
+    <p class="subtitle">Multi-Agent Collaborative Medical Pre-Diagnosis System — LangGraph 工作流</p>
+</div>
+
+<div class="container">
+    <div class="legend">
+        <div class="legend-item"><span class="legend-dot entry"></span>记忆节点</div>
+        <div class="legend-item"><span class="legend-dot intent"></span>意图/路由</div>
+        <div class="legend-item"><span class="legend-dot analysis"></span>分析节点</div>
+        <div class="legend-item"><span class="legend-dot eval"></span>评估节点</div>
+        <div class="legend-item"><span class="legend-dot tool"></span>业务Agent</div>
+        <div class="legend-item"><span class="legend-dot output"></span>输出节点</div>
+        <div class="legend-item"><span class="legend-dot control"></span>控制节点</div>
+    </div>
+
+    <div class="controls">
+        <button class="active" onclick="switchTab('flow')">完整工作流</button>
+        <button onclick="switchTab('architecture')">系统架构</button>
+        <button onclick="switchTab('routing')">路由决策树</button>
+    </div>
+
+    <!-- Tab 1: Flow Diagram -->
+    <div id="tab-flow" class="tab-content active">
+        <div class="diagram-wrapper">
+            <div class="mermaid">
+graph TB
+    START((👤 用户输入)) --> ML["🧠 memory_loader<br/><small>加载短期记忆(Redis)<br/>+ 长期记忆(Milvus)</small>"]
+
+    ML --> IC["🎯 intent_classifier<br/><small>意图识别<br/>qwen-turbo 快速分类</small>"]
+
+    IC -->|"紧急求助<br/>emergency"| SE2["⚡ severity_evaluator<br/><small>严重程度评估<br/>规则关键词匹配 + LLM兜底</small>"]
+
+    IC -->|"症状描述<br/>symptom_query"| SA["🔬 symptom_analysis<br/><small>图片分析 qwen-vl-max<br/>+ 症状提取 qwen3-max</small>"]
+
+    IC -->|"药品咨询<br/>drug_query"| DQ["💊 drug_qa_agent<br/><small>药品信息检索 + RAG<br/>+ qwen3-max 专业回答</small>"]
+
+    IC -->|"地点搜索<br/>location_search"| LR["📍 location_recommender<br/><small>高德地图 POI 周边搜索<br/>MCP Tool 调用</small>"]
+
+    IC -->|"闲聊<br/>chitchat"| RS["📝 response_synthesizer<br/><small>多结果汇总<br/>生成最终回复</small>"]
+
+    IC -->|"中断/超时<br/>interrupt"| IH["⚠️ interrupt_handler<br/><small>业务中断/回滚/超时<br/>降级处理</small>"]
+
+    SA -->|"正常"| RAG["📚 rag_retriever<br/><small>混合检索 Milvus向量+BM25<br/>+ bge-reranker 重排序</small>"]
+
+    SA -->|"中断"| IH
+
+    RAG -->|"正常"| SE["⚡ severity_evaluator<br/><small>规则 + LLM<br/>mild→药店 / moderate→门诊<br/>severe→急诊+急救提示</small>"]
+
+    RAG -->|"中断"| IH
+
+    SE2 -->|"severe"| LR2["📍 location_recommender<br/><small>半径5000m<br/>急救中心+综合医院</small>"]
+
+    SE -->|"severe/紧急"| LR
+    SE -->|"mild/moderate"| MA["🏥 medical_advisor<br/><small>qwen3-max + RAG上下文<br/>+ 长期记忆摘要<br/>生成个性化医疗建议</small>"]
+
+    SE -->|"中断"| IH
+
+    MA -->|"mild<br/>轻度"| RS
+    MA -->|"moderate/severe<br/>中重度"| LR
+
+    LR --> RS
+    LR2 --> RS
+    DQ --> RS
+    IH --> RS
+
+    RS --> MU["💾 memory_updater<br/><small>更新 Redis短期记忆<br/>+ Milvus长期摘要<br/>+ MySQL诊断记录</small>"]
+
+    MU --> END((🏁 END))
+
+    style START fill:#1e293b,stroke:#4ade80,stroke-width:2px,color:#e2e8f0
+    style END fill:#1e293b,stroke:#4ade80,stroke-width:2px,color:#e2e8f0
+    style ML fill:#1e293b,stroke:#4ade80,stroke-width:2px,color:#e2e8f0
+    style IC fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#e2e8f0
+    style SA fill:#1e293b,stroke:#c084fc,stroke-width:2px,color:#e2e8f0
+    style RAG fill:#1e293b,stroke:#a78bfa,stroke-width:2px,color:#e2e8f0
+    style SE fill:#1e293b,stroke:#fbbf24,stroke-width:2px,color:#e2e8f0
+    style SE2 fill:#1e293b,stroke:#fbbf24,stroke-width:2px,color:#e2e8f0
+    style MA fill:#1e293b,stroke:#f59e0b,stroke-width:2px,color:#e2e8f0
+    style DQ fill:#1e293b,stroke:#fb923c,stroke-width:2px,color:#e2e8f0
+    style LR fill:#1e293b,stroke:#f97316,stroke-width:2px,color:#e2e8f0
+    style LR2 fill:#1e293b,stroke:#f97316,stroke-width:2px,color:#e2e8f0
+    style RS fill:#1e293b,stroke:#f472b6,stroke-width:2px,color:#e2e8f0
+    style MU fill:#1e293b,stroke:#4ade80,stroke-width:2px,color:#e2e8f0
+    style IH fill:#1e293b,stroke:#f87171,stroke-width:2px,color:#e2e8f0
+
+    linkStyle default stroke:#475569,stroke-width:1.5px
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Architecture -->
+    <div id="tab-architecture" class="tab-content">
+        <div class="diagram-wrapper">
+            <div class="mermaid">
+graph TB
+    subgraph 接入层["🌐 用户接入层"]
+        TEXT["💬 文字对话"]
+        IMG["🖼️ 图片上传"]
+        VOICE["🎤 语音(扩展)"]
+    end
+
+    subgraph 网关层["🔌 FastAPI 网关层"]
+        API["REST API + WebSocket"]
+        INTENT["意图识别模块<br/><small>symptom_query / drug_query<br/>location_search / emergency / chitchat</small>"]
+        INTERRUPT["中断/回滚/超时处理器"]
+    end
+
+    subgraph 编排层["⚙️ LangGraph 多智能体编排层"]
+        direction TB
+        SV["Supervisor Graph<br/><small>路由 · 状态机 · 条件边 · 结果合并</small>"]
+
+        subgraph 核心Agent["核心 Agent 节点"]
+            A1["🔬 症状分析 Agent<br/><small>qwen-vl-max + qwen3-max</small>"]
+            A2["📚 RAG 检索器<br/><small>Milvus向量 + BM25 + 重排序</small>"]
+            A3["⚡ 严重程度评估<br/><small>规则优先 + LLM兜底</small>"]
+            A4["🏥 医疗建议 Agent<br/><small>qwen3-max + RAG上下文</small>"]
+            A5["📍 地点推荐 Agent<br/><small>高德POI MCP Tool</small>"]
+            A6["💊 药品问答 Agent<br/><small>RAG + qwen3-max</small>"]
+        end
+
+        SV --> A1 & A2 & A3 & A4 & A5 & A6
+        A1 --> A2 --> A3 --> A4 --> A5
+    end
+
+    subgraph 工具层["🔧 工具层 MCP / Skill Tools"]
+        T1["amap_poi_search<br/><small>高德周边搜索</small>"]
+        T2["drug_info_lookup<br/><small>药品说明书查询</small>"]
+        T3["hybrid_retriever<br/><small>混合检索+重排序</small>"]
+        T4["severity_judge<br/><small>规则+LLM双判断</small>"]
+    end
+
+    subgraph 存储层["💾 存储层"]
+        S1[("Redis<br/><small>短期记忆<br/>会话上下文</small>")]
+        S2[("Milvus<br/><small>长期记忆+RAG<br/>向量索引</small>")]
+        S3[("MySQL<br/><small>用户档案<br/>诊断记录</small>")]
+    end
+
+    接入层 --> 网关层
+    网关层 --> 编排层
+    编排层 --> 工具层
+    工具层 --> 存储层
+
+    style 接入层 fill:#1e293b,stroke:#38bdf8,color:#e2e8f0
+    style 网关层 fill:#1e293b,stroke:#c084fc,color:#e2e8f0
+    style 编排层 fill:#1e293b,stroke:#fbbf24,color:#e2e8f0
+    style 工具层 fill:#1e293b,stroke:#fb923c,color:#e2e8f0
+    style 存储层 fill:#1e293b,stroke:#4ade80,color:#e2e8f0
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 3: Routing Tree -->
+    <div id="tab-routing" class="tab-content">
+        <div class="diagram-wrapper">
+            <div class="mermaid">
+graph LR
+    IC["🎯 intent_classifier<br/><small>意图识别结果</small>"]
+
+    IC -->|"emergency<br/>紧急求助"| SE["⚡ severity_evaluator<br/><small>直接评估严重度</small>"]
+    IC -->|"symptom_query<br/>症状描述"| SA["🔬 symptom_analysis<br/><small>图片+文字分析</small>"]
+    IC -->|"drug_query<br/>药品咨询"| DQ["💊 drug_qa_agent<br/><small>药品RAG+LLM</small>"]
+    IC -->|"location_search<br/>地点搜索"| LR["📍 location_recommender<br/><small>高德POI搜索</small>"]
+    IC -->|"chitchat<br/>闲聊"| RS["📝 response_synthesizer<br/><small>友好回复</small>"]
+    IC -->|"interrupt/timeout<br/>异常"| IH["⚠️ interrupt_handler<br/><small>降级处理</small>"]
+
+    SE -->|"severe"| LR_SE["📍 推荐急救中心<br/><small>radius=5000m</small>"]
+    SE -->|"不适用"| RS
+
+    SA --> RAG["📚 rag_retriever"]
+    RAG --> SE2["⚡ severity_evaluator"]
+
+    SE2 -->|"mild<br/>轻度"| MA["🏥 medical_advisor<br/><small>推荐药店</small>"]
+    SE2 -->|"moderate<br/>中度"| MA2["🏥 medical_advisor<br/><small>推荐门诊</small>"]
+    SE2 -->|"severe<br/>重度"| LR2["📍 location_recommender<br/><small>推荐急诊</small>"]
+
+    MA -->|"mild"| RS2["📝 合成回复<br/><small>轻度建议</small>"]
+    MA2 -->|"moderate"| LR3["📍 推荐门诊"]
+    LR3 --> RS3["📝 合成回复<br/><small>含地点推荐</small>"]
+    LR2 --> RS4["📝 合成回复<br/><small>含急诊信息</small>"]
+
+    DQ --> RS_D["📝 合成回复<br/><small>药品专业回答</small>"]
+    LR --> RS_L["📝 合成回复<br/><small>地点列表</small>"]
+    IH --> RS_I["📝 合成回复<br/><small>降级/恢复</small>"]
+
+    style IC fill:#1e293b,stroke:#38bdf8,stroke-width:2px,color:#e2e8f0
+    style SE fill:#1e293b,stroke:#fbbf24,stroke-width:2px,color:#e2e8f0
+    style SA fill:#1e293b,stroke:#c084fc,stroke-width:2px,color:#e2e8f0
+    style DQ fill:#1e293b,stroke:#fb923c,stroke-width:2px,color:#e2e8f0
+    style LR fill:#1e293b,stroke:#f97316,stroke-width:2px,color:#e2e8f0
+    style RS fill:#1e293b,stroke:#f472b6,stroke-width:2px,color:#e2e8f0
+    style IH fill:#1e293b,stroke:#f87171,stroke-width:2px,color:#e2e8f0
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Cards -->
+    <h2 style="margin-bottom: 16px; color: var(--muted); font-size: 1.2rem;">🧩 Agent 节点详情</h2>
+    <div class="agent-cards">
+        <div class="agent-card">
+            <div class="card-header">
+                <div class="card-icon icon-entry">🧠</div>
+                <div>
+                    <div class="card-name">memory_loader</div>
+                    <div class="card-model">Redis + Milvus</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                系统入口节点。加载用户短期记忆（Redis，TTL=30min）和长期健康摘要（Milvus 向量检索），为后续流程提供个性化上下文。
+            </div>
+        </div>
+
+        <div class="agent-card">
+            <div class="card-header">
+                <div class="card-icon icon-intent">🎯</div>
+                <div>
+                    <div class="card-name">intent_classifier</div>
+                    <div class="card-model">qwen-turbo</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                快速意图分类节点。将用户输入分为：symptom_query / drug_query / location_search / emergency / chitchat / unknown，决定后续路由分支。
+            </div>
+        </div>
+
+        <div class="agent-card">
+            <div class="card-header">
+                <div class="card-icon icon-analysis">🔬</div>
+                <div>
+                    <div class="card-name">symptom_analysis</div>
+                    <div class="card-model">qwen-vl-max + qwen3-max</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                症状分析复合节点。先调用 image_analyzer (qwen-vl-max) 做多模态图片分析，再调用 symptom_extractor (qwen3-max) 结构化提取症状和可能的疾病。
+            </div>
+        </div>
+
+        <div class="agent-card">
+            <div class="card-header">
+                <div class="card-icon icon-analysis">📚</div>
+                <div>
+                    <div class="card-name">rag_retriever</div>
+                    <div class="card-model">Milvus + BM25 + reranker</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                RAG混合检索节点。Milvus向量检索（HNSW）+ BM25稀疏检索，经RRF融合后由 bge-reranker-v2-m3 重排序，Top-5 结果输入后续LLM上下文。
+            </div>
+        </div>
+
+        <div class="agent-card">
+            <div class="card-header">
+                <div class="card-icon icon-eval">⚡</div>
+                <div>
+                    <div class="card-name">severity_evaluator</div>
+                    <div class="card-model">规则引擎 + qwen-turbo</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                严重程度评估节点。规则优先匹配危险关键词（胸痛/呼吸困难→severe），LLM兜底评估复杂症状。输出 mild / moderate / severe / unknown 驱动后续路由。
+            </div>
+        </div>
+
+        <div class="agent-card">
+            <div class="card-header">
+                <div class="card-icon icon-tool">🏥</div>
+                <div>
+                    <div class="card-name">medical_advisor</div>
+                    <div class="card-model">qwen3-max</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                医疗建议生成节点。结合 RAG检索知识、长期记忆摘要、短期对话历史，用 qwen3-max 生成个性化医疗建议（症状分析→措施建议→危险信号→免责声明）。
+            </div>
+        </div>
+
+        <div class="agent-card">
+            <div class="card-header">
+                <div class="card-icon icon-tool">💊</div>
+                <div>
+                    <div class="card-name">drug_qa_agent</div>
+                    <div class="card-model">qwen3-max + RAG</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                药品问答Agent。提取药品名称和问题类型（用法/禁忌/副作用/剂量），检索药品说明书 + RAG知识库，由 qwen3-max 生成专业回答。
+            </div>
+        </div>
+
+        <div class="agent-card">
+            <div class="card-header">
+                <div class="card-icon icon-tool">📍</div>
+                <div>
+                    <div class="card-name">location_recommender</div>
+                    <div class="card-model">高德地图 API</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                地点推荐Agent。根据严重程度自动选择搜索策略：mild→药店(1km) / moderate→综合医院(3km) / severe→急救中心(5km)。调用高德POI周边搜索MCP Tool。
+            </div>
+        </div>
+
+        <div class="agent-card">
+            <div class="card-header">
+                <div class="card-icon icon-output">📝</div>
+                <div>
+                    <div class="card-name">response_synthesizer</div>
+                    <div class="card-model">qwen-turbo</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                最终响应合成器。根据意图类型整合各Agent结果：紧急→急救提醒 / 症状→医疗建议+地点 / 药品→专业回答 / 地点→POI列表 / 闲聊→友好引导。
+            </div>
+        </div>
+
+        <div class="agent-card">
+            <div class="card-header">
+                <div class="card-icon icon-entry">💾</div>
+                <div>
+                    <div class="card-name">memory_updater</div>
+                    <div class="card-model">Redis + Milvus + MySQL</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                记忆更新节点。保存对话到Redis短期记忆，累计6轮后生成摘要向量化存入Milvus长期记忆，同时写入MySQL诊断记录。流程终点。
+            </div>
+        </div>
+
+        <div class="agent-card">
+            <div class="card-header">
+                <div class="card-icon icon-control">⚠️</div>
+                <div>
+                    <div class="card-name">interrupt_handler</div>
+                    <div class="card-model">中断/回滚/超时处理</div>
+                </div>
+            </div>
+            <div class="card-desc">
+                异常处理节点。处理用户主动取消、API超时(15s)、工具调用异常、置信度过低等场景。支持状态快照回滚、降级回复、追问生成。
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="footer">
+    MediPreDiag-Agent v1.0.0 — Multi-Agent Collaborative Medical Pre-Diagnosis System — Powered by LangGraph + Qwen + Milvus
+</div>
+
+<script>
+    mermaid.initialize({
+        startOnLoad: true,
+        theme: 'dark',
+        themeVariables: {
+            primaryColor: '#1e293b',
+            primaryTextColor: '#e2e8f0',
+            primaryBorderColor: '#334155',
+            lineColor: '#475569',
+            secondaryColor: '#1e293b',
+            tertiaryColor: '#1e293b',
+            fontSize: '14px',
+        },
+        flowchart: {
+            useMaxWidth: true,
+            htmlLabels: true,
+            curve: 'basis',
+        },
+        securityLevel: 'loose',
+    });
+
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + tabName).classList.add('active');
+        document.querySelectorAll('.controls button').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        mermaid.contentLoaded();
+    }
+</script>
+
+</body>
+</html>

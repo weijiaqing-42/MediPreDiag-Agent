@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MediPreDiag-Agent | 医疗预诊助手</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-light: #dbeafe;
+    --success: #16a34a;
+    --warning: #f59e0b;
+    --danger: #dc2626;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --text: #1e293b;
+    --text-secondary: #64748b;
+    --border: #e2e8f0;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 320px;
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 16px;
+    overflow-y: auto;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-icon {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--primary), #7c3aed);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .logo h1 { font-size: 18px; font-weight: 700; }
+  .logo span { font-size: 12px; color: var(--text-secondary); display: block; }
+
+  .status-badge {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; border-radius: var(--radius);
+    font-size: 13px; font-weight: 500;
+  }
+  .status-badge.connected { background: #dcfce7; color: var(--success); }
+  .status-badge.disconnected { background: #fef2f2; color: var(--danger); }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  .connected .status-dot { background: var(--success); }
+  .disconnected .status-dot { background: var(--danger); animation: none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .location-box {
+    background: #f8fafc; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px;
+  }
+  .location-box h3 { font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; }
+  .loc-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .loc-row input {
+    flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; outline: none; transition: border-color .2s;
+  }
+  .loc-row input:focus { border-color: var(--primary); }
+  .loc-btn {
+    width: 100%; padding: 8px; border: 1px dashed var(--primary); border-radius: 6px;
+    background: transparent; color: var(--primary); font-size: 13px; cursor: pointer;
+    transition: all .2s;
+  }
+  .loc-btn:hover { background: var(--primary-light); }
+  .loc-btn.active { background: var(--primary); color: white; border-style: solid; }
+
+  .sidebar-section { flex: 1; }
+  .sidebar-section h3 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .5px;
+    color: var(--text-secondary); margin-bottom: 10px;
+  }
+
+  .intent-tag {
+    display: inline-block; padding: 4px 10px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+  }
+  .intent-symptom_query { background: #dbeafe; color: #1d4ed8; }
+  .intent-emergency { background: #fee2e2; color: #dc2626; }
+  .intent-drug_query { background: #fef3c7; color: #d97706; }
+  .intent-location_search { background: #d1fae5; color: #059669; }
+  .intent-chitchat, .intent-unknown { background: #f1f5f9; color: #64748b; }
+
+  .severity-badge {
+    display: inline-block; padding: 4px 10px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+  }
+  .severity-mild { background: #dcfce7; color: #16a34a; }
+  .severity-moderate { background: #fef3c7; color: #d97706; }
+  .severity-severe { background: #fee2e2; color: #dc2626; }
+  .severity-unknown { background: #f1f5f9; color: #64748b; }
+
+  .disease-card {
+    background: #f8fafc; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 8px;
+  }
+  .disease-card .name { font-size: 14px; font-weight: 600; }
+  .disease-card .conf {
+    font-size: 11px; color: var(--primary); margin-top: 2px;
+  }
+  .disease-card .desc { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+
+  .place-card {
+    background: #f8fafc; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 8px;
+  }
+  .place-card .name { font-size: 13px; font-weight: 600; }
+  .place-card .addr { font-size: 12px; color: var(--text-secondary); }
+  .place-card .dist { font-size: 11px; color: var(--primary); }
+
+  .sidebar-actions { display: flex; gap: 8px; }
+  .sidebar-actions button {
+    flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: white; font-size: 12px; cursor: pointer; transition: all .2s;
+  }
+  .sidebar-actions button:hover { background: var(--bg); }
+  .sidebar-actions button.danger { color: var(--danger); border-color: #fecaca; }
+  .sidebar-actions button.danger:hover { background: #fef2f2; }
+
+  /* ── Main Chat ── */
+  .main {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+  }
+
+  .chat-header {
+    padding: 16px 24px; background: var(--card); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .chat-header h2 { font-size: 16px; font-weight: 600; }
+  .session-id { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
+
+  .chat-messages {
+    flex: 1; overflow-y: auto; padding: 24px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+
+  .msg {
+    display: flex; gap: 12px; max-width: 80%;
+    animation: slideIn .3s ease;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } }
+
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg.assistant { align-self: flex-start; }
+
+  .msg-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .msg.user .msg-avatar { background: var(--primary-light); }
+  .msg.assistant .msg-avatar { background: #ede9fe; }
+
+  .msg-bubble {
+    padding: 12px 16px; border-radius: 16px; font-size: 14px; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .msg.user .msg-bubble { background: var(--primary); color: white; border-bottom-right-radius: 4px; }
+  .msg.assistant .msg-bubble { background: var(--card); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+
+  .msg-meta { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+
+  .typing-indicator {
+    display: flex; gap: 6px; padding: 12px 16px; align-items: center;
+  }
+  .typing-indicator span {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary);
+    animation: bounce 1.4s infinite both;
+  }
+  .typing-indicator span:nth-child(2) { animation-delay: .2s; }
+  .typing-indicator span:nth-child(3) { animation-delay: .4s; }
+  @keyframes bounce { 0%,80%,100%{transform:scale(0)} 40%{transform:scale(1)} }
+
+  /* ── Input ── */
+  .chat-input-area {
+    padding: 16px 24px; background: var(--card); border-top: 1px solid var(--border);
+    display: flex; gap: 12px; align-items: flex-end;
+  }
+  .chat-input-area textarea {
+    flex: 1; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius);
+    font-size: 14px; font-family: inherit; resize: none; outline: none;
+    transition: border-color .2s; max-height: 120px;
+  }
+  .chat-input-area textarea:focus { border-color: var(--primary); }
+
+  .send-btn {
+    width: 48px; height: 48px; border: none; border-radius: 50%;
+    background: var(--primary); color: white; font-size: 20px; cursor: pointer;
+    transition: all .2s; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .send-btn:hover { background: #1d4ed8; transform: scale(1.05); }
+  .send-btn:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
+
+  .stop-btn {
+    width: 48px; height: 48px; border: 2px solid var(--danger); border-radius: 50%;
+    background: #fef2f2; color: var(--danger); font-size: 18px; cursor: pointer;
+    transition: all .2s; flex-shrink: 0;
+    display: none; align-items: center; justify-content: center;
+    animation: pulse-stop 1.5s infinite;
+  }
+  .stop-btn.visible { display: flex; }
+  .stop-btn:hover { background: var(--danger); color: white; }
+  @keyframes pulse-stop { 0%,100%{ opacity: 1; } 50%{ opacity: 0.6; } }
+
+  .cancel-banner {
+    display: none; align-items: center; justify-content: center; gap: 8px;
+    padding: 8px 16px; background: #fef2f2; border-top: 1px solid #fecaca;
+    color: var(--danger); font-size: 13px; font-weight: 500;
+  }
+  .cancel-banner.visible { display: flex; }
+
+  .quick-actions {
+    display: flex; gap: 8px; padding: 0 24px 8px; flex-wrap: wrap;
+  }
+  .quick-btn {
+    padding: 6px 14px; border: 1px solid var(--border); border-radius: 20px;
+    background: white; font-size: 12px; cursor: pointer; transition: all .2s;
+  }
+  .quick-btn:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    body { flex-direction: column; }
+    .sidebar { width: 100%; max-height: 40vh; }
+    .msg { max-width: 95%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════ SIDEBAR ══════════ -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">🏥</div>
+    <div>
+      <h1>MediPreDiag-Agent</h1>
+      <span>v1.0 · 多智能体医疗预诊</span>
+    </div>
+  </div>
+
+  <div id="statusBadge" class="status-badge disconnected">
+    <div class="status-dot"></div>
+    <span id="statusText">未连接</span>
+  </div>
+
+  <div class="location-box">
+    <h3>📍 你的位置（可选）</h3>
+    <div class="loc-row">
+      <input type="text" id="locLat" placeholder="纬度 lat (例: 31.23)" value="31.2304">
+      <input type="text" id="locLng" placeholder="经度 lng (例: 121.47)" value="121.4737">
+    </div>
+    <button id="locToggle" class="loc-btn active" onclick="toggleLocation()">✓ 已启用位置服务</button>
+  </div>
+
+  <div class="sidebar-section">
+    <h3>📋 诊断结果</h3>
+    <div id="diagnosisPanel">
+      <p style="color:var(--text-secondary);font-size:13px;">开始问诊后将在此显示</p>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <h3>🏥 附近机构</h3>
+    <div id="placesPanel">
+      <p style="color:var(--text-secondary);font-size:13px;">暂无推荐</p>
+    </div>
+  </div>
+
+  <div class="sidebar-actions">
+    <button onclick="clearSession()">🧹 清除会话</button>
+    <button class="danger" onclick="resetAll()">🔄 重置全部</button>
+  </div>
+</aside>
+
+<!-- ══════════ MAIN CHAT ══════════ -->
+<main class="main">
+  <div class="chat-header">
+    <h2>💬 智能问诊对话</h2>
+    <span class="session-id" id="sessionIdDisplay">—</span>
+  </div>
+
+  <div class="chat-messages" id="chatMessages">
+    <div class="msg assistant">
+      <div class="msg-avatar">🤖</div>
+      <div>
+        <div class="msg-bubble">
+          您好！我是 <b>MediPreDiag-Agent</b> 医疗预诊助手 🩺<br><br>
+          请描述您的症状，我会帮您分析可能的疾病方向。<br>
+          您也可以：<br>
+          • 询问药品信息<br>
+          • 查询附近的医院或药店<br>
+          • 上传图片辅助诊断<br><br>
+          <i style="color:var(--text-secondary);">💡 提示：开启位置可获取附近医疗机构推荐</i>
+        </div>
+        <div class="msg-meta">系统消息</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="quick-actions">
+    <button class="quick-btn" onclick="quickSend('我头痛发烧，喉咙痛，持续了两天')">🤒 头痛发烧</button>
+    <button class="quick-btn" onclick="quickSend('布洛芬有什么副作用和禁忌？')">💊 药品查询</button>
+    <button class="quick-btn" onclick="quickSend('附近有什么医院可以看咳嗽？')">🏥 查找医院</button>
+    <button class="quick-btn" onclick="quickSend('胸痛呼吸困难，非常难受')">🚨 紧急情况</button>
+  </div>
+
+  <div class="cancel-banner" id="cancelBanner">⏹ 已发送取消信号，等待当前操作完成...</div>
+
+  <div class="chat-input-area">
+    <textarea id="userInput" rows="1" placeholder="描述你的症状或问题..."
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+    <button class="stop-btn" id="stopBtn" onclick="stopProcessing()" title="停止当前处理">■</button>
+  </div>
+</main>
+
+<script>
+/* ═══════════ STATE ═══════════ */
+const API = 'http://localhost:8001';
+let sessionId = localStorage.getItem('medagent_session') || null;
+let locationEnabled = true;
+let isProcessing = false;
+let currentAbortController = null;
+
+/* ═══════════ INIT ═══════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  checkHealth();
+  if (sessionId) {
+    document.getElementById('sessionIdDisplay').textContent = sessionId.slice(0,8) + '...';
+  }
+  document.getElementById('userInput').focus();
+});
+
+/* ═══════════ HEALTH CHECK ═══════════ */
+async function checkHealth() {
+  const badge = document.getElementById('statusBadge');
+  const text = document.getElementById('statusText');
+  try {
+    const res = await fetch(API + '/health');
+    if (res.ok) {
+      const data = await res.json();
+      badge.className = 'status-badge connected';
+      text.textContent = `已连接 · ${data.service} ${data.version}`;
+    }
+  } catch {
+    badge.className = 'status-badge disconnected';
+    text.textContent = '服务未启动';
+  }
+}
+setInterval(checkHealth, 15000);
+
+/* ═══════════ LOCATION ═══════════ */
+function toggleLocation() {
+  locationEnabled = !locationEnabled;
+  const btn = document.getElementById('locToggle');
+  btn.textContent = locationEnabled ? '✓ 已启用位置服务' : '已关闭位置服务';
+  btn.classList.toggle('active', locationEnabled);
+}
+
+function getLocation() {
+  if (!locationEnabled) return null;
+  const lat = parseFloat(document.getElementById('locLat').value);
+  const lng = parseFloat(document.getElementById('locLng').value);
+  if (isNaN(lat) || isNaN(lng)) return null;
+  return { lat, lng };
+}
+
+/* ═══════════ PROCESSING STATE ═══════════ */
+function setProcessing(active) {
+  isProcessing = active;
+  const sendBtn = document.getElementById('sendBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  if (active) {
+    sendBtn.style.display = 'none';
+    stopBtn.classList.add('visible');
+  } else {
+    sendBtn.style.display = '';
+    stopBtn.classList.remove('visible');
+    document.getElementById('cancelBanner').classList.remove('visible');
+  }
+}
+
+/* ═══════════ STOP PROCESSING ═══════════ */
+async function stopProcessing() {
+  if (!isProcessing) return;
+
+  document.getElementById('cancelBanner').classList.add('visible');
+  document.getElementById('stopBtn').disabled = true;
+
+  if (currentAbortController) {
+    currentAbortController.abort();
+    currentAbortController = null;
+  }
+
+  if (sessionId) {
+    try {
+      await fetch(`${API}/api/v1/cancel/${sessionId}`, {
+        method: 'POST',
+      });
+      console.log('Cancel signal sent for session', sessionId);
+    } catch (e) {
+      console.error('Failed to send cancel signal:', e);
+    }
+  }
+}
+
+/* ═══════════ QUICK SEND ═══════════ */
+function quickSend(msg) {
+  document.getElementById('userInput').value = msg;
+  sendMessage();
+}
+
+/* ═══════════ SEND MESSAGE ═══════════ */
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const msg = input.value.trim();
+  if (!msg || isProcessing) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  setProcessing(true);
+  document.getElementById('stopBtn').disabled = false;
+
+  addMessage('user', msg);
+  const typingEl = addTyping();
+
+  currentAbortController = new AbortController();
+
+  try {
+    const body = {
+      user_id: 'web-user',
+      message: msg,
+      session_id: sessionId,
+      user_location: getLocation(),
+    };
+
+    const res = await fetch(API + '/api/v1/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: currentAbortController.signal,
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`HTTP ${res.status}: ${err}`);
+    }
+
+    const data = await res.json();
+    removeTyping(typingEl);
+
+    sessionId = data.session_id;
+    localStorage.setItem('medagent_session', sessionId);
+    document.getElementById('sessionIdDisplay').textContent = sessionId.slice(0,8) + '...';
+
+    const wasCancelled = data.response && data.response.includes('操作已被用户取消');
+    if (wasCancelled) {
+      addMessage('assistant', data.response);
+    } else {
+      addMessage('assistant', data.response);
+    }
+    updateSidebar(data);
+
+  } catch (e) {
+    removeTyping(typingEl);
+    if (e.name === 'AbortError') {
+      addMessage('assistant', '⏹ 操作已被停止。');
+      document.getElementById('cancelBanner').classList.remove('visible');
+    } else {
+      addMessage('assistant', `⚠️ 请求失败：${e.message}\n\n请确认服务已启动。`);
+      checkHealth();
+    }
+  }
+
+  currentAbortController = null;
+  setProcessing(false);
+  document.getElementById('userInput').focus();
+}
+
+/* ═══════════ MESSAGE RENDERING ═══════════ */
+function addMessage(role, content) {
+  const container = document.getElementById('chatMessages');
+
+  if (role === 'assistant') {
+    container.querySelectorAll('.msg.system-msg').forEach(el => el.remove());
+  }
+
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+
+  const avatar = role === 'user' ? '👤' : '🤖';
+  const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+  let formatted = escapeHtml(content);
+  formatted = formatted.replace(/🚨/g, '<span style="font-size:1.2em">🚨</span>');
+  formatted = formatted.replace(/🏥/g, '<span style="font-size:1.2em">🏥</span>');
+
+  div.innerHTML = `
+    <div class="msg-avatar">${avatar}</div>
+    <div>
+      <div class="msg-bubble">${formatted}</div>
+      <div class="msg-meta">${time}</div>
+    </div>
+  `;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function addTyping() {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'msg assistant system-msg';
+  div.innerHTML = `
+    <div class="msg-avatar">🤖</div>
+    <div class="msg-bubble">
+      <div class="typing-indicator"><span></span><span></span><span></span></div>
+    </div>
+  `;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+function removeTyping(el) {
+  if (el && el.parentNode) el.remove();
+}
+
+/* ═══════════ SIDEBAR UPDATE ═══════════ */
+function updateSidebar(data) {
+  updateDiagnosis(data);
+  updatePlaces(data);
+}
+
+function updateDiagnosis(data) {
+  const panel = document.getElementById('diagnosisPanel');
+  let html = '';
+
+  if (data.intent) {
+    const intentLabels = {
+      symptom_query: '症状问诊', emergency: '紧急情况', drug_query: '药品咨询',
+      location_search: '地点搜索', chitchat: '闲聊', unknown: '未知'
+    };
+    html += `<div style="margin-bottom:8px;">
+      <span class="intent-tag intent-${data.intent}">${intentLabels[data.intent] || data.intent}</span>
+    </div>`;
+  }
+
+  if (data.severity_level && data.severity_level !== 'unknown') {
+    const sevLabels = { mild: '轻度', moderate: '中度', severe: '重度' };
+    html += `<div style="margin-bottom:8px;">
+      <span class="severity-badge severity-${data.severity_level}">${sevLabels[data.severity_level] || data.severity_level}</span>
+    </div>`;
+  }
+
+  if (data.possible_diseases && data.possible_diseases.length > 0) {
+    html += '<div style="margin-top:10px;"><strong style="font-size:13px;">可能的疾病：</strong></div>';
+    data.possible_diseases.forEach(d => {
+      html += `<div class="disease-card">
+        <div class="name">${escapeHtml(d.name || '未知')}</div>
+        <div class="conf">置信度 ${((d.confidence||0)*100).toFixed(0)}%</div>
+        ${d.description ? `<div class="desc">${escapeHtml(d.description)}</div>` : ''}
+      </div>`;
+    });
+  }
+
+  if (data.drug_info) {
+    html += `<div style="margin-top:10px;"><strong style="font-size:13px;">💊 药品信息：</strong></div>
+      <div style="font-size:12px;color:var(--text-secondary);white-space:pre-wrap;">${escapeHtml(data.drug_info).slice(0,300)}</div>`;
+  }
+
+  panel.innerHTML = html || '<p style="color:var(--text-secondary);font-size:13px;">暂无诊断结果</p>';
+}
+
+function updatePlaces(data) {
+  const panel = document.getElementById('placesPanel');
+  if (!data.nearby_places || data.nearby_places.length === 0) {
+    panel.innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">暂无推荐</p>';
+    return;
+  }
+
+  let html = '';
+  data.nearby_places.forEach(p => {
+    html += `<div class="place-card">
+      <div class="name">${escapeHtml(p.name || '未知')}</div>
+      <div class="addr">${escapeHtml(p.address || '')}</div>
+      ${p.distance ? `<div class="dist">${p.distance}m</div>` : ''}
+      ${p.tel ? `<div style="font-size:11px;">📞 ${escapeHtml(p.tel)}</div>` : ''}
+    </div>`;
+  });
+  panel.innerHTML = html;
+}
+
+/* ═══════════ SESSION ═══════════ */
+async function clearSession() {
+  if (!sessionId) return;
+  try {
+    await fetch(API + '/api/v1/session/' + sessionId, { method: 'DELETE' });
+  } catch {}
+  sessionId = null;
+  localStorage.removeItem('medagent_session');
+  document.getElementById('sessionIdDisplay').textContent = '—';
+  document.getElementById('diagnosisPanel').innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">开始问诊后将在此显示</p>';
+  document.getElementById('placesPanel').innerHTML = '<p style="color:var(--text-secondary);font-size:13px;">暂无推荐</p>';
+  document.getElementById('chatMessages').innerHTML = '';
+}
+
+function resetAll() {
+  clearSession();
+  locationEnabled = true;
+  document.getElementById('locToggle').textContent = '✓ 已启用位置服务';
+  document.getElementById('locToggle').classList.add('active');
+}
+
+/* ═══════════ HELPERS ═══════════ */
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+let textareaAutoResize = function() {
+  const ta = document.getElementById('userInput');
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+};
+document.getElementById('userInput').addEventListener('input', textareaAutoResize);
+</script>
+</body>
+</html>
